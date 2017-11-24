@@ -24,8 +24,8 @@ class Business:
         # looking at the below link, this looks sufficient. Excludes businesses
         # that only serve alcohol (bars, clubs).
         # https://www.yelp.com/developers/documentation/v3/all_category_list
-        self.is_restaurant = "Food" in self.categories or \
-                             "Restaurants" in self.categories
+        self.is_restaurant = "Restaurants" in self.categories
+        self.is_food = "Food" in self.categories
         self.rating = json_obj["stars"]
         if "RestaurantsPriceRange2" in json_obj["attributes"]:
             self.price_range = json_obj["attributes"]["RestaurantsPriceRange2"]
