@@ -69,6 +69,17 @@ class Business:
         """
         self.nearest_neighbors = nearest_neighbors
 
+    def find_neighbors_in_radius(self, radius, other_businesses):
+        """
+        :param radius: in kilometers
+        :param other_businesses: the other businesses to find the nearby neighbors in
+        """
+        neighbors = []
+        for o in other_businesses:
+            dist_between = self.distance_to(o)
+            if dist_between < radius:
+                neighbors.append(o)
+        return neighbors
 
 # grabbed from
 # https://stackoverflow.com/questions/15736995/how-can-i-quickly-estimate-the-distance-between-two-latitude-longitude-points
