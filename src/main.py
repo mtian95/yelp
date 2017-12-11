@@ -2,7 +2,9 @@ import json
 import numpy as np
 import time
 from scipy.stats.stats import pearsonr
+import scipy
 import math
+import matplotlib.pyplot as plt
 
 from Business import Business
 
@@ -62,6 +64,12 @@ def load_k_neighbors_for_businesses(k, source_array, target_array):
         business.set_nearest_neighbors(nearest_neighbors)
 
 
+def load_nearby_neighbors_for_businesses(source_array, target_array):
+    for business in source_array:
+        nearest_neighbors = business.find_neighbors_in_radius(.4, target_array)
+        business.set_nearest_neighbors(nearest_neighbors)
+
+
 def get_k_random_businesses(k, business_array):
     rand_array = np.random.rand(k)
     rand_businesses = []
@@ -71,7 +79,7 @@ def get_k_random_businesses(k, business_array):
     return rand_businesses
 
 
-def analyze_rating_vs_neighbors(business_array):
+def analyze_rating_vs_neighbors(business_array, categories=None):
     """
     requires business_array to be all restaurants or food establishments.
     nearest neighbors must have already been computed.
@@ -88,7 +96,7 @@ def analyze_rating_vs_neighbors(business_array):
     category_ratings = {}
     for b in business_array:
         for category in b.categories:
-            if category == "Restaurants" or category == "Food":
+            if category == "Restaurants" or category == "Food" or (categories and category not in categories):
                 continue
             count = count_category_occurence_in_businesses(category, b.nearest_neighbors)
             if category in category_counts:
@@ -108,11 +116,13 @@ def analyze_rating_vs_neighbors(business_array):
 
     high_similarity_category_counts = []
     high_similarity_category_ratings = []
+    category_with_averages = {}
     for category in category_counts:
         similar_nearby_sum = 0
         for inner_sum in category_counts[category]:
             similar_nearby_sum += inner_sum
         average_similar_neighbors = similar_nearby_sum*1.0 / len(category_counts[category])
+        category_with_averages[category] = average_similar_neighbors
         print "average neighbor overlap for category {}: {}".format(category, average_similar_neighbors)
 
         if average_similar_neighbors < 3.:
@@ -134,7 +144,8 @@ def analyze_rating_vs_neighbors(business_array):
 
     similar_neighbors_correlation = pearsonr(high_similarity_category_counts, high_similarity_category_ratings)
     print "high similarity correlation: {}".format(similar_neighbors_correlation)
-    import ipdb; ipdb.set_trace()
+    display_average_category_overlap(category_with_averages)
+    display_mean_with_error(master_category_counts, master_category_ratings)
 
 
 def count_category_occurence_in_businesses(category, business_array):
@@ -154,4 +165,111 @@ def count_category_occurence_in_businesses(category, business_array):
     return category_count
 
 
-if __name__ == "__main__":
+def parse_businesses_for_vegas(b_array):
+    return_array = []
+    for b in b_array:
+        if b.city == "Las Vegas" or b.city == "las vegas":
+            return_array.append(b)
+    return return_array
+
+
+def analyze_dollars_to_ratings(b_array):
+    dollars = []
+    ratings = []
+    for b in b_array:
+        if b.price_range:
+            dollars.append(b.price_range)
+            ratings.append(b.rating)
+    display_dollars_to_ratings(dollars, ratings)
+
+# display stuff
+
+
+def display_average_distances_for_businesses(b_array):
+    averages = []
+    for business in b_array:
+        nn_sum = 0
+        for neighbor in business.nearest_neighbors:
+            nn_sum += business.distance_to(neighbor)
+        averages.append(nn_sum/len(business.nearest_neighbors))
+
+    plt.hist(averages)
+    plt.title("Distribution of Average Distance of 40 Nearest Neighbors")
+    plt.xlabel("Average distance (km)")
+    plt.ylabel("Number of Restaurants (1000 total)")
+    plt.show()
+
+
+def display_average_category_overlap(categories_to_average_similar_neighbors, n=20):
+    plt.hist(categories_to_average_similar_neighbors.values())
+    plt.title("Distribution of Average Nearby Similar Neighbors")
+    plt.xlabel("Average Nearby Similar Neighbors")
+    plt.ylabel("Number of Categories")
+    plt.show()
+
+    # also figure out the top n categories
+    categories_with_counts = [(category, categories_to_average_similar_neighbors[category]) for category in categories_to_average_similar_neighbors]
+    sorted_categories_with_counts = sorted(categories_with_counts, key=lambda x: x[1], reverse=True)
+    print sorted_categories_with_counts[0:n]
+    return sorted_categories_with_counts[0:n]
+
+
+def display_mean_with_error(list_o_similarity_counts, list_o_ratings):
+    count_to_ratings = {}
+    for count, rating in zip(list_o_similarity_counts, list_o_ratings):
+        if count in count_to_ratings:
+            count_to_ratings[count].append(rating)
+        else:
+            count_to_ratings[count] = [rating]
+
+    counts = []
+    average_ratings = []
+    ses = []
+    for count in sorted(count_to_ratings.keys()):
+        arr = np.array(count_to_ratings[count])
+        counts.append(count)
+        average_ratings.append(np.mean(arr))
+        ses.append(scipy.stats.sem(arr))
+
+    plt.plot(counts, average_ratings)
+
+    plt.title("Average Stars per Amount of Similar Nearby Restaurants")
+    plt.xlabel("Amount of Similar Nearby Restaurants")
+    plt.ylabel("Average Stars")
+    plt.fill_between(counts, np.array(average_ratings)-np.array(ses),
+                     np.array(average_ratings)+np.array(ses), alpha=.5)
+
+    plt.show()
+
+
+def display_dollars_to_ratings(list_o_dollars, list_o_ratings):
+    buckets = [(1, 1.5), (1.5, 2), (2, 2.5), (2.5, 3), (3, 3.5), (3.5, 4)]
+
+    bucket_sums = {}
+    for dollar, rating in zip(list_o_dollars, list_o_ratings):
+        for low, high in buckets:
+            if high >= dollar >= low:
+                if low in bucket_sums:
+                    bucket_sums[low].append(rating)
+                else:
+                    bucket_sums[low] = [rating]
+    x_labels = [1.25, 1.75, 2.25, 2.75, 3.25, 3.75]
+    means = []
+    ses = []
+    for bucket in bucket_sums:
+        arr = np.array(bucket_sums[bucket])
+        means.append(np.mean(arr))
+        ses.append(scipy.stats.sem(arr))
+
+    plt.plot(x_labels, means)
+
+    plt.title("Average Stars per Average Neighbor Dollar Rating")
+    plt.xlabel("Average Neighbor Dollar Rating")
+    plt.ylabel("Average Stars")
+    plt.fill_between(x_labels, np.array(means)-np.array(ses),
+                     np.array(means)+np.array(ses), alpha=.5)
+
+    plt.show()
+
+
+

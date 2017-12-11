@@ -20,6 +20,7 @@ class Business:
         self.latitude = json_obj['latitude']
         self.longitude = json_obj['longitude']
         self.categories = json_obj["categories"]
+        self.city = json_obj["city"]
 
         # looking at the below link, this looks sufficient. Excludes businesses
         # that only serve alcohol (bars, clubs).
